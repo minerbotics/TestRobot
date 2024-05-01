@@ -4,32 +4,11 @@
 
 package frc.robot;
 
-import frc.robot.Constants.GoalTypeConstants;
 import frc.robot.Constants.OperatorConstants;
-import frc.robot.commands.AutoAmpScore;
-import frc.robot.commands.AutoDriveForward;
-import frc.robot.commands.AutoSpeakerScoreCenter;
-import frc.robot.commands.AutoSpeakerScoreRight;
-import frc.robot.commands.AutoSpeakerScoreLeft;
-import frc.robot.commands.ClimberDown;
-import frc.robot.commands.ClimberUp;
+import frc.robot.commands.AutoDrive;
 import frc.robot.commands.DefaultDriveCommand;
-import frc.robot.commands.DoIntake;
-import frc.robot.commands.DoShoot;
-import frc.robot.commands.ComboIntake;
-import frc.robot.commands.ManeuverOn;
-import frc.robot.commands.ManualSwing;
-import frc.robot.commands.ComboShoot;
-import frc.robot.commands.SwingToPosition;
-import frc.robot.subsystems.Climber;
-import frc.robot.subsystems.IntakeSubsystem;
-import frc.robot.subsystems.Shooter;
 import frc.robot.subsystems.Swerve;
-import frc.robot.subsystems.Swinger;
-
-import com.pathplanner.lib.auto.AutoBuilder;
-
-import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
+import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.InstantCommand;
@@ -46,30 +25,18 @@ public class RobotContainer {
   // The robot's subsystems and commands are defined here...
   // Subsystems
   private final Swerve m_Swerve;
-  private final Climber m_Climber;
-  private final IntakeSubsystem m_IntakeSubsystem;
-  private final Shooter m_Shooter;
-  private final Swinger m_Swinger;
 
 
   private final CommandXboxController m_driverController;
-  private final CommandXboxController m_OperatorController;
-
-  private final SendableChooser<Command> autoChooser;
 
   /** The container for the robot. Contains subsystems, OI devices, and commands. */
   public RobotContainer() {
     // Subsystems
     m_Swerve = new Swerve();
-    m_Climber = new Climber();
-    m_IntakeSubsystem = new IntakeSubsystem();
-    m_Shooter = new Shooter();
-    m_Swinger = new Swinger();
 
     // Controllers
     m_driverController = new CommandXboxController(OperatorConstants.DRIVER_CONTROLLER_PORT);
-    m_OperatorController = new CommandXboxController(OperatorConstants.OPERATOR_CONTROLLER_PORT);
-
+    
     // Commands
 //    NamedCommands.registerCommand("AmpShoot", new Shoot(m_Swerve, null, null, null, GoalTypeConstants.AMP));
     
@@ -84,19 +51,9 @@ public class RobotContainer {
             () -> -modifyAxis(m_driverController.getRightX()) * Swerve.MAX_ANGULAR_VELOCITY_RADIANS_PER_SECOND
     ));
 
-    m_Swinger.setDefaultCommand(new ManualSwing(m_Swinger, m_OperatorController));
     SmartDashboard.updateValues();
     // Configure the trigger bindings
     configureBindings();
-    autoChooser = AutoBuilder.buildAutoChooser();
-    autoChooser.addOption("Score In Speaker - Centered", new AutoSpeakerScoreCenter(m_Swerve, m_Swinger, m_IntakeSubsystem, m_Shooter)); 
-    autoChooser.addOption("Score In Speaker - Offset Right", new AutoSpeakerScoreRight(m_Swerve, m_Swinger, m_IntakeSubsystem, m_Shooter));
-    autoChooser.addOption("Score In Speaker - Offset Left", new AutoSpeakerScoreLeft(m_Swerve, m_Swinger, m_IntakeSubsystem, m_Shooter));
-
-    autoChooser.addOption("Basic Drive Forward", new AutoDriveForward(m_Swerve));
-    autoChooser.setDefaultOption("Score In Amp", new AutoAmpScore(m_Swerve, m_Swinger, m_IntakeSubsystem, m_Shooter));
-
-    SmartDashboard.putData("Auto Chooser", autoChooser);
 
   }
 
@@ -123,16 +80,6 @@ public class RobotContainer {
       .whileTrue(new DefaultDriveCommand(m_Swerve, () -> 0.0, () -> 0.5, () -> 0.0, true));
     m_driverController.povRight()
       .whileTrue(new DefaultDriveCommand(m_Swerve, () -> 0.0, () -> -0.5, () -> 0.0, true));
-
-    /** Climber commands */
-    m_driverController.y()
-      .onTrue(new ClimberUp(m_Climber));
-    m_driverController.a()
-      .onTrue(new ClimberDown(m_Climber));
-
-    // Only 1 of the following 2 command bindings should be uncommented.
-//    setOperatorComboCommandBindings();
-    setOperatorManualCommandBindings();
     
   }
 
@@ -141,9 +88,9 @@ public class RobotContainer {
    * 
    * @return the command to run in autonomous
    */
-  public Command getAutonomousCommand() {
+   public Command getAutonomousCommand() {
     // An example command will be run in autonomous
-    return autoChooser.getSelected();
+    return new AutoDrive(m_Swerve, new ChassisSpeeds(0, 0, 0));
   }
 
   private static double deadband(double value, double deadband) {
@@ -168,36 +115,6 @@ public class RobotContainer {
     return value;
   }
 
-  /** Combo Commands (swing -> maneuver -> intake/shoot) */
-  private void setOperatorComboCommandBindings() {
-    m_OperatorController.x().whileTrue(new ComboShoot(m_Swerve, m_Shooter, m_IntakeSubsystem, m_Swinger, GoalTypeConstants.AMP));
-    m_OperatorController.leftBumper().whileTrue(new ComboIntake(m_Swerve, m_IntakeSubsystem, m_Shooter, m_Swinger, GoalTypeConstants.SOURCE_1));
-    m_OperatorController.leftBumper().and(m_OperatorController.rightBumper()).whileTrue(new ComboIntake(m_Swerve, m_IntakeSubsystem, m_Shooter, m_Swinger, GoalTypeConstants.SOURCE_2));
-    m_OperatorController.rightBumper().whileTrue(new ComboIntake(m_Swerve, m_IntakeSubsystem, m_Shooter, m_Swinger, GoalTypeConstants.SOURCE_3));
-    m_OperatorController.y().whileTrue(new ComboShoot(m_Swerve, m_Shooter, m_IntakeSubsystem, m_Swinger, GoalTypeConstants.SPEAKER));
-  }
 
-  /** Button Bindings for when PID isn't working and arm movement is manual. */
-  private void setOperatorManualCommandBindings() {
-    // Intake
-    m_OperatorController.rightTrigger(0.5).whileTrue(new ManeuverOn(m_Swerve, GoalTypeConstants.SOURCE_1, false));
-    m_OperatorController.leftTrigger(0.5).whileTrue(new ManeuverOn(m_Swerve, GoalTypeConstants.SOURCE_1, false));
-    m_OperatorController.leftBumper().whileTrue(new DoIntake(m_IntakeSubsystem, m_Shooter));
-    m_OperatorController.rightBumper().whileTrue(new DoIntake(m_IntakeSubsystem, m_Shooter));
-    
-    // AmpShoot
-    m_OperatorController.a().whileTrue(new ManeuverOn(m_Swerve, GoalTypeConstants.AMP, false));
-    m_OperatorController.x().whileTrue(new DoShoot(m_IntakeSubsystem, m_Shooter, GoalTypeConstants.AMP));
-
-    // SpeakerShoot
-    m_OperatorController.b().whileTrue(new SwingToPosition(m_Swinger, GoalTypeConstants.OFFSET_SPEAKER));
-    m_OperatorController.y().whileTrue(new DoShoot(m_IntakeSubsystem, m_Shooter, GoalTypeConstants.SPEAKER));
-
-    // Arm Positions
-    m_OperatorController.povDown().onTrue(new SwingToPosition(m_Swinger, 0));
-    m_OperatorController.povLeft().onTrue(new SwingToPosition(m_Swinger, GoalTypeConstants.SOURCE_1));
-    m_OperatorController.povRight().onTrue(new SwingToPosition(m_Swinger, GoalTypeConstants.AMP));
-    m_OperatorController.povUp().onTrue(new SwingToPosition(m_Swinger, GoalTypeConstants.SPEAKER));
-  }
 
 }
